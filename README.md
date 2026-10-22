@@ -18,14 +18,29 @@ DeepSeek Harness（DSH）桌面端的 Host + Web 双半插件，仅支持 Window
 
 ## 安装
 
-1. 克隆到任意本地目录（不必放进 DSH 工作区）：
+三种方式任选，装完都只需「刷新一次 GUI 页面」让 Web 客户端半加载，之后启停插件都不必再刷新。
 
-   ```powershell
-   git clone https://github.com/Jxxxxx729/dsh-win-notify.git "$env:USERPROFILE\dsh-win-notify"
-   ```
+**A. 预构建包（最快，不克隆仓库）**
 
-2. 打开 DSH 的「插件」页，用**本地 bundle 目录**安装上一步的目录（目录里有 `package.json` 和 `cordis.patch.yml`）。安装后出现条目 `dsh-win-notify`，启用即生效：插件会自己注册 `dsh-win-notify:` 协议、创建 `%LOCALAPPDATA%\dsh-win-notify\` 状态目录。
-3. 首次安装后刷新一次 GUI 页面，让 Web 客户端半加载；之后启停插件都不需要再刷新。
+从 [最新 release](https://github.com/Jxxxxx729/dsh-win-notify/releases/latest) 下载 `dsh-win-notify.tgz`，在 DSH「插件」页用**包文件 / URL** 安装：
+
+```text
+https://github.com/Jxxxxx729/dsh-win-notify/releases/latest/download/dsh-win-notify.tgz
+```
+
+装好后出现条目 `dsh-win-notify`，启用即生效：插件会自己注册 `dsh-win-notify:` 协议、创建 `%LOCALAPPDATA%\dsh-win-notify\` 状态目录。
+
+**B. 从源码（改代码 / 跟进开发时用）**
+
+```powershell
+git clone https://github.com/Jxxxxx729/dsh-win-notify.git "$env:USERPROFILE\dsh-win-notify"
+```
+
+然后在 DSH「插件」页用**本地 bundle 目录**安装 `$env:USERPROFILE\dsh-win-notify`（目录里有 `package.json` 和 `cordis.patch.yml`）。
+
+**C. 插件市场**
+
+已向 [awesome-dsh-plugin](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin) 提交条目（[PR #8736](https://github.com/awesome-dsh-plugin/awesome-dsh-plugin/pull/8736)）；合并后可在 DSH 插件市场里按 `notify` 分类直接安装。
 
 要求：Windows 10/11 + DSH 桌面版（通知身份依赖桌面应用的 AppUserModelID `com.deepseek.dsh`）。在非桌面版（纯 `dsh web`）里仍会发通知，但点通知只能打开 DSH 而无法靠应用标识显示图标。
 
