@@ -316,16 +316,40 @@ export function apply(ctx, config) {
     }
   }
 
-  function spawnDetached(argv) {
+  function describeError(error) {
+    return error && error.message ? error.message : String(error);
+  }
+
+  /**
+   * 用 powershell.exe 执行一个 runtime 脚本。
+   *
+   * 这里刻意不用 detached + stdio:'ignore'：那种方式启动失败时（脚本路径、
+   * 权限、WinRT 初始化等）在日志里没有任何痕迹，只能看到「toast queued」，
+   * 排查时完全抓瞎。改成管道接住 stderr 并记录退出码，出问题能直接看到原因。
+   */
+  function runPowerShell(argv, label) {
+    let child;
     try {
-      const child = spawn(POWERSHELL, argv, { windowsHide: true, detached: true, stdio: 'ignore' });
-      child.on('error', (error) => log(`powershell spawn failed: ${error && error.message ? error.message : String(error)}`));
-      child.unref();
-      return true;
+      child = spawn(POWERSHELL, argv, { windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
     } catch (error) {
-      log(`powershell spawn failed: ${error && error.message ? error.message : String(error)}`);
-      return false;
+      log(`${label} spawn failed: ${describeError(error)}`);
+      return;
     }
+    let stderr = '';
+    try {
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk) => {
+        if (stderr.length < 4000) stderr += chunk;
+      });
+    } catch {
+      // ignore
+    }
+    child.on('error', (error) => log(`${label} spawn error: ${describeError(error)}`));
+    child.on('exit', (code, signal) => {
+      const tail = stderr.trim().replace(/\s+/g, ' ');
+      const extra = tail === '' ? '' : ` stderr=${tail.slice(0, 500)}`;
+      log(`${label} exited code=${code}${signal ? ` signal=${signal}` : ''}${extra}`);
+    });
   }
 
   function showToast({ title, lines, sessionId, kind }) {
@@ -347,9 +371,8 @@ export function apply(ctx, config) {
       args.push('-AppId', appId);
       if (settings.skipWhenFocused) args.push('-SkipIfForeground', FOREGROUND_PROCESS);
       args.push('-LogPath', LOG_FILE);
-      if (spawnDetached(args)) {
-        log(`toast queued kind=${kind || 'open'}${sessionId ? ` session=${sessionId}` : ''} title=${normalizeText(title)}`);
-      }
+      log(`toast queued kind=${kind || 'open'}${sessionId ? ` session=${sessionId}` : ''} title=${normalizeText(title)}`);
+      runPowerShell(args, 'toast');
     } catch (error) {
       log(`showToast failed: ${error && error.message ? error.message : String(error)}`);
     }
@@ -400,7 +423,8 @@ export function apply(ctx, config) {
     ];
     if (appExe !== '') args.push('-AppExe', appExe);
     else args.push('-NoAppExe');
-    if (spawnDetached(args)) log(`protocol registration requested appExe=${appExe || '(none)'}`);
+    log(`protocol registration requested appExe=${appExe || '(none)'}`);
+    runPowerShell(args, 'protocol registration');
   }
 
   // ------------------------------------------------------------ turn events
@@ -696,36 +720,40 @@ export function apply(ctx, config) {
   }
 
   function mountActivationRoutes() {
-    let webServer;
-    try {
-      webServer = typeof ctx.get === 'function' ? ctx.get('webServer') : undefined;
-    } catch {
-      webServer = undefined;
-    }
-    if (!webServer || typeof webServer.register !== 'function') {
-      log('webServer service unavailable: click-to-open will fall back to focusing the app only');
-      return () => {};
-    }
-    // 路由基名固定，不改用 settings.protocol：浏览器半写死了 '/dsh-win-notify/*'，
-    // protocol 只是 Windows 协议名，改它不应该让点击跳转断掉。
-    const base = DEFAULT_PROTOCOL;
-    const disposers = [];
-    try {
-      disposers.push(webServer.register({ kind: 'exact', path: `/${base}/next`, handler: handleNext }));
-      disposers.push(webServer.register({ kind: 'exact', path: `/${base}/status`, handler: handleStatus }));
-      disposers.push(webServer.register({ kind: 'exact', path: `/${base}/log`, handler: handleClientLog }));
-    } catch (error) {
-      log(`activation route registration failed: ${error && error.message ? error.message : String(error)}`);
-    }
-    return () => {
-      for (const dispose of disposers) {
-        try {
-          dispose();
-        } catch {
-          // ignore
-        }
+    // webServer 可能在插件加载时还没就绪（例如桌面端刚重启，插件比服务先加载），
+    // 用 ctx.inject 等它出现再挂路由：服务缺失时回调不执行，出现后自动执行，
+    // 服务一旦被替换也会先卸载再重建。这样不会再因为启动顺序丢掉点击跳转。
+    ctx.inject(['webServer'], (hostCtx) => {
+      const webServer = hostCtx.webServer;
+      if (!webServer || typeof webServer.register !== 'function') {
+        log('webServer service unusable: click-to-open will fall back to focusing the app only');
+        return;
       }
-    };
+      // 路由基名固定，不改用 settings.protocol：浏览器半写死了 '/dsh-win-notify/*'，
+      // protocol 只是 Windows 协议名，改它不应该让点击跳转断掉。
+      const base = DEFAULT_PROTOCOL;
+      hostCtx.effect(() => {
+        const disposers = [];
+        try {
+          disposers.push(webServer.register({ kind: 'exact', path: `/${base}/next`, handler: handleNext }));
+          disposers.push(webServer.register({ kind: 'exact', path: `/${base}/status`, handler: handleStatus }));
+          disposers.push(webServer.register({ kind: 'exact', path: `/${base}/log`, handler: handleClientLog }));
+          log(`activation routes mounted (/${base}/next, /status, /log)`);
+        } catch (error) {
+          log(`activation route registration failed: ${describeError(error)}`);
+        }
+        return () => {
+          for (const dispose of disposers) {
+            try {
+              dispose();
+            } catch {
+              // ignore
+            }
+          }
+          if (disposers.length > 0) log('activation routes unmounted');
+        };
+      }, 'dsh-win-notify: activation routes');
+    });
   }
 
   // ----------------------------------------------------------- registrations
@@ -749,5 +777,22 @@ export function apply(ctx, config) {
   ctx.effect(() => ctx.on('approval/request', onApprovalRequest, { prepend: true }), 'dsh-win-notify: approval notifications');
   ctx.effect(() => ctx.on('deepseek-account/model-sign-in-required', onSignInRequired), 'dsh-win-notify: sign-in notifications');
   ctx.effect(() => ctx.on('deepseek-account/session-expired', onSessionExpired), 'dsh-win-notify: session notifications');
-  ctx.effect(() => mountActivationRoutes(), 'dsh-win-notify: activation routes');
+  mountActivationRoutes();
+
+  // 自检钩子：把 selftest.flag 放进状态目录再重启插件，就会立刻发一条通知，
+  // 用来确认「插件进程 → powershell → 通知栏」整条链路是否通（方便排查）。
+  ctx.effect(() => {
+    const flag = path.join(STATE_DIR, 'selftest.flag');
+    if (!existsSync(flag)) return;
+    try {
+      unlinkSync(flag);
+    } catch {
+      // ignore
+    }
+    showToast({
+      title: '通知自检',
+      lines: ['dsh-win-notify 自检通知', '能看到这条说明通知通道正常'],
+      kind: 'selftest',
+    });
+  }, 'dsh-win-notify: self test');
 }

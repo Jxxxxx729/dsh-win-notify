@@ -62,6 +62,11 @@ DeepSeek Harness（DSH）桌面端的 Host + Web 双半插件，仅支持 Window
   - `payload\` 已发送的 Toast XML（保留最近 80 个）
   - `notify.log` 日志
 - 自检：`GET http://<GUI 地址>/dsh-win-notify/status` 返回当前配置、spool 待处理数与日志路径。
+- 通知自检（不依赖任何对话事件）：在 `%LOCALAPPDATA%\dsh-win-notify\` 里新建空文件 `selftest.flag`，再到「插件」里把 `dsh-win-notify` 关掉再打开；重新激活时会立刻发一条「通知自检」通知，用来确认「插件 → powershell → 通知栏」整条链路。
+- 排查用日志行：
+  - `toast queued kind=... title=...`：插件收到了事件并已生成 payload；
+  - `toast exited code=0`：powershell 正常结束（脚本内部还会往同一个 `notify.log` 追加一行 `shown`）；
+  - `toast exited code=1` 或 `stderr=...`：发送失败，`stderr` 与脚本写的 `error: ...` 会给出原因。
 
 ## 注册表
 
@@ -77,8 +82,18 @@ DeepSeek Harness（DSH）桌面端的 Host + Web 双半插件，仅支持 Window
 - `user-questions/request` / `approval/request` 是 waterfall 事件，内置 UI 应答者一旦认领就不会再往下走，所以本插件用 `{ prepend: true }` 抢在它之前**只观察并立刻 `return next()`**，不参与决策；这也是修改这两个监听器时最容易被忽略的一点。
 - 改动 `client.js` 后需要刷新一次 GUI 页面才会生效（Host 半可以用插件启停热重载，浏览器半不会自动重载）。
 - 浏览器半可以离线自测：`node test-client.mjs`（用假的 `window` / `fetch` / `uiWorkspace` 覆盖补前缀、解归档、dispose 停止轮询四种情况）。
+- 发通知用的是**非 detached** 的 `powershell.exe` 子进程并接住 `stderr`、记录退出码。早先试过 `detached: true` + `stdio: 'ignore'`：桌面端重启后那种子进程会静默地不执行脚本（日志里只有 `toast queued`、没有 `shown`，通知也不弹），而且没有任何报错可查。不要改回 detached。
+- 路由用 `ctx.inject(['webServer'], (hostCtx) => ...)` 挂载：桌面端冷启动时插件可能比 `webServer` 服务先加载，直接 `ctx.get('webServer')` 会拿到 `undefined`，一旦错过就再也不会重试，点击跳转和客户端轮询会一起失效。
 - 通知与点击链路里的路由基名固定为 `/dsh-win-notify/*`；`protocol` 配置只影响 Windows 协议名，不会让已打开的页面失联。
 
+
+### 1.0.1 修复（2026-10-22 晚）
+
+现象：桌面端重启后，别的对话出现「需要授权」时没有通知弹出，点击跳转也失效。
+
+- 原因一：发通知用的是 `detached: true` + `stdio: 'ignore'` 的 powershell 子进程，重启后这类子进程静默地没有执行脚本 —— 日志里只有 `toast queued`、没有 `shown`，也没有任何报错。改为非 detached 子进程并接 `stderr` + 记录退出码后，日志出现 `toast exited code=0` 与脚本写的 `shown`，通知正常弹出。
+- 原因二：插件激活时 `webServer` 还没就绪（`webServer service unavailable`），路由从此再也不会挂载，客户端拿不到激活记录。改用 `ctx.inject(['webServer'], ...)` 后，激活日志出现 `activation routes mounted ...`，客户端轮询恢复。
+- 复验：`selftest.flag` 自检通知弹出（AppId `com.deepseek.dsh`）；写 spool 记录可让窗口标题从「Windows 通知栏提示 dsh 事件」切到「将tulpa接入工作区」再切回；`dsh-win-notify:open?s=<id>` 协议激活同样被客户端取走。
 
 ## 许可
 

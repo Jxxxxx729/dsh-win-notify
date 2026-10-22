@@ -1,6 +1,6 @@
 {
   "name": "dsh-win-notify",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "description": "Windows 通知栏提醒：对话完成、等待选择、等待授权或需要登录时发出 DeepSeek Harness 通知，点击即可跳回对应对话。",
   "license": "MIT",
