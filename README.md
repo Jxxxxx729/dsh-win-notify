@@ -79,13 +79,6 @@ DeepSeek Harness（DSH）桌面端的 Host + Web 双半插件，仅支持 Window
 - 浏览器半可以离线自测：`node test-client.mjs`（用假的 `window` / `fetch` / `uiWorkspace` 覆盖补前缀、解归档、dispose 停止轮询四种情况）。
 - 通知与点击链路里的路由基名固定为 `/dsh-win-notify/*`；`protocol` 配置只影响 Windows 协议名，不会让已打开的页面失联。
 
-## 验收记录
-
-- 通知身份：AppId `com.deepseek.dsh`，通知栏显示应用名「DeepSeek Harness」+ 应用图标。
-- 对话完成：真实 `turn/end`（completed）触发 `toast queued kind=complete`，payload 含会话标题与摘要。
-- 点击跳转：点击通知 → `activate.vbs` 写 spool → 客户端轮询 `openSession` → 窗口标题切换为目标对话（已用两个不同会话双向验证）。
-- 需要选择：真实 `user-questions/request` 触发 `toast queued kind=question`，payload 含会话标题 / 问题小标题 / 问题正文。
-- 需要授权、需要登录两条：本机当前策略下无法触发真实事件（文件策略为 danger-full-access，没有可升级的沙箱授权；账号未过期），代码路径与「需要选择」相同（同一 waterfall + prepend 机制）。
 
 ## 许可
 
