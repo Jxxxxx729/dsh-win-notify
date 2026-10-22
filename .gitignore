@@ -4,3 +4,7 @@ node_modules/
 Thumbs.db
 payload/
 spool/
+
+# local build / release scratch
+*.tgz
+.release-notes-*.md
