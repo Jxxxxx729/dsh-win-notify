@@ -86,14 +86,12 @@ DeepSeek Harness（DSH）桌面端的 Host + Web 双半插件，仅支持 Window
 - 路由用 `ctx.inject(['webServer'], (hostCtx) => ...)` 挂载：桌面端冷启动时插件可能比 `webServer` 服务先加载，直接 `ctx.get('webServer')` 会拿到 `undefined`，一旦错过就再也不会重试，点击跳转和客户端轮询会一起失效。
 - 通知与点击链路里的路由基名固定为 `/dsh-win-notify/*`；`protocol` 配置只影响 Windows 协议名，不会让已打开的页面失联。
 
+## 更新记录
 
-### 1.0.1 修复（2026-10-22 晚）
-
-现象：桌面端重启后，别的对话出现「需要授权」时没有通知弹出，点击跳转也失效。
-
-- 原因一：发通知用的是 `detached: true` + `stdio: 'ignore'` 的 powershell 子进程，重启后这类子进程静默地没有执行脚本 —— 日志里只有 `toast queued`、没有 `shown`，也没有任何报错。改为非 detached 子进程并接 `stderr` + 记录退出码后，日志出现 `toast exited code=0` 与脚本写的 `shown`，通知正常弹出。
-- 原因二：插件激活时 `webServer` 还没就绪（`webServer service unavailable`），路由从此再也不会挂载，客户端拿不到激活记录。改用 `ctx.inject(['webServer'], ...)` 后，激活日志出现 `activation routes mounted ...`，客户端轮询恢复。
-- 复验：`selftest.flag` 自检通知弹出（AppId `com.deepseek.dsh`）；写 spool 记录可让窗口标题从「Windows 通知栏提示 dsh 事件」切到「将tulpa接入工作区」再切回；`dsh-win-notify:open?s=<id>` 协议激活同样被客户端取走。
+- **1.0.1**（2026-10-22）：修复桌面端重启后「别的对话需要授权/选择却没有通知」以及点击跳转失效的问题。
+  - 原因一：发通知原先用 `detached: true` + `stdio: 'ignore'` 的 powershell 子进程，桌面端重启后这类子进程会静默地不执行脚本 —— 日志里只有 `toast queued`、没有 `shown`，也没有任何报错可查。现改为非 detached 子进程，接住 `stderr` 并记录退出码。
+  - 原因二：插件可能比 `webServer` 服务先加载，`ctx.get('webServer')` 拿到 `undefined` 后就再也不会重试，客户端轮询与点击跳转一起失效。现改用 `ctx.inject(['webServer'], ...)` 在服务就绪时挂载路由。
+  - 另新增 `selftest.flag` 自检通知（见「状态与日志」），用来单独验证「插件 → powershell → 通知栏」这条链路。
 
 ## 许可
 
