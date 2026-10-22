@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Windows 通知提醒",
+    "description": "对话完成、等待选择或等待授权时，在 Windows 通知栏发出 DeepSeek Harness 通知，点击即可跳回对应对话。"
+  }
+}

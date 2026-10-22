@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Windows Notifications",
+    "description": "Show a Windows notification when a conversation finishes, waits for a choice, or waits for approval. Click it to jump back to that conversation."
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "name": "dsh-win-notify",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Windows 通知栏提醒：对话完成、等待选择、等待授权或需要登录时发出 DeepSeek Harness 通知，点击即可跳回对应对话。",
+  "license": "MIT",
+  "author": "Streait",
+  "homepage": "https://github.com/Jxxxxx729/dsh-win-notify#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Jxxxxx729/dsh-win-notify.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Jxxxxx729/dsh-win-notify/issues"
+  },
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "windows",
+    "notification",
+    "toast",
+    "plugin"
+  ],
+  "type": "module",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "locale/en.json",
+    "locale/zh.json",
+    "runtime/activate.vbs",
+    "runtime/register-protocol.ps1",
+    "runtime/show-toast.ps1",
+    "README.md",
+    "test-client.mjs"
+  ],
+  "icon": "./icon.svg",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true
+    }
+  }
+}
